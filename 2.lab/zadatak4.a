@@ -1,0 +1,101 @@
+CT_CR       EQU      0FFFF0000
+CT_LR       EQU      0FFFF0004
+CT_STAT     EQU      0FFFF0008
+CT_END      EQU      0FFFF000C
+
+DMA_SRC     EQU      0FFFF1000       
+DMA_DEST    EQU      0FFFF1004
+DMA_SIZE    EQU      0FFFF1008
+DMA_CTRL    EQU      0FFFF100C
+DMA_START   EQU      0FFFF1010
+DMA_IACK    EQU      0FFFF1014
+
+BVJ         EQU      0FFFFFFFC   
+
+            ORG 0
+            MOVE 10000, SP
+            JP GLAVNI
+
+            ORG 0C
+PREKIDNI    PUSH R0              ;spremanje konteksta
+            PUSH R1
+            MOVE SR, R1
+            PUSH R1
+
+            STORE R0, (DMA_IACK) ;dojava prihvata prekida
+            
+            LOAD R1, (ADRESA)  ;ucitavamo adresu na koju pisemo
+            ADD R1, 24, R1
+            STORE R1, (ADRESA) ;pomicanje pointera gdje pisemo
+
+            MOVE -1, R0        ;terminiranje bloka sa -1
+            STORE R0, (R1)
+            ADD R1, 4, R1      ;moramo ponovo pomaknuti za 4 jer smo dodali 1 podatak
+            STORE R1, (ADRESA)
+
+            LOAD R0, (BLOKOVI)   ;povecati broj procitanih blokova za 1
+            ADD R0, 1, R0
+            STORE R0, (BLOKOVI)
+
+            MOVE 1, R0
+            STORE R0, (END_PREK) ;dojaviti glavnom programu da je kraj prekida
+
+            POP R1               ;obnova konteksta
+            MOVE R1, SR
+            POP R1
+            POP R0
+
+GLAVNI      MOVE 1000, R6        ;inicijalizacija pokazivaca gdje pise
+
+            ;moze li tu biti inciliziran dma src
+            MOVE %B 0111, R0    	;vj u mem, prekidni nacin rada
+      		STORE R0, (DMA_CTRL)
+
+            MOVE 9, R0
+            STORE R0, (DMA_SIZE) ;definiranje velicine bloka podatka koju prenosimo
+
+            ;inicijalizacija CT
+            MOVE %D 1000, R0     ; nase vrijerme 100us * frekvencija 10MHz
+            STORE R0, (CT_LR)
+
+            MOVE %B 01, R0       ;postavljanje kontrolne rijeci vidi u notionu sta znaci
+            STORE R0, (CT_CR)    ;brojilo pocelo brojati
+
+CHKBLOK     LOAD R0, (BLOKOVI)
+            CMP R0, 5            ;nakon 5 prenesenih blokova treba zavrsiti
+            JP_EQ KRAJ
+
+BROJILO     LOAD R0, (CT_STAT)   
+            CMP R0, 1            ;tek kad bude 1 je izbrojao cijeli ciklus
+            JP_EQ BROJILO
+
+            STORE R0, (CT_STAT)  ;brisanje spremnosti
+
+            ;inicijalizacija DMA
+            MOVE BVJ, R0         ;staviti vanjusku jedinicu kao SRC
+            STORE R0, (DMA_SRC)
+
+            LOAD R0, (ADRESA)
+            STORE R0, (DMA_DEST) ;ucitavanje adrese kao DEST
+
+            STORE R0, (DMA_START);dojava pocetka prijenosa
+
+CHKPREK     LOAD R0, (END_PREK)
+            AND R0, 1, R0
+            JP_Z CHKPREK
+
+            MOVE 0, R0
+            STORE R0, (CT_END)       ;javiti ct da je kraj posluzivanja
+            STORE R0, (END_PREK)     ;obnoviti stanje da je kraj prekida
+
+            JP CHKBLOK
+
+KRAJ        MOVE 0, R0
+            STORE R0, (CT_CR)        ;reci brojacu da ne broji vise
+            STORE R0, (DMA_CTRL)     ;zaustaviti rad DMA  
+            HALT
+
+
+ADRESA      DW       1000
+BLOKOVI     DW       0           ;u njemu se skladisit podatak koliko se blokova vec poslalo
+END_PREK    DW       0
