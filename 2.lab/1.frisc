@@ -1,12 +1,12 @@
-BVJ         EQU      0FFFF1000
+UVJ1         EQU      0FFFF1000
 
-UVJ_B       EQU      0FFFF2000
-UVJ_D       EQU      0FFFF2004
+UVJ2_B       EQU      0FFFF2000
+UVJ2_D       EQU      0FFFF2004
 
-PVJ_D       EQU      0FFFF3000
-PVJ_B       EQU      0FFFF3004
-PVJ_K       EQU      0FFFF3008
-PVJ_S       EQU      0FFFF300C
+UVJ3_D       EQU      0FFFF3000
+UVJ3_B       EQU      0FFFF3004
+UVJ3_K       EQU      0FFFF3008
+UVJ3_S       EQU      0FFFF300C
 
             
             ORG 0
@@ -18,62 +18,58 @@ POCETAK     MOVE     10000, SP
             DW 500
          
 GLAVNI      MOVE %B 10000, SR    ;dozvoljavanje prihvata prekida na INT
-            MOVE 1, PVJ_S        ;omogucavanje postavljanje zahtjeva za prekid
+            MOVE 1, R0         
+				STORE R0, (UVJ3_S)		;omogucavanje postavljanje zahtjeva za prekid
 
-LOOP_G      LOAD  R0, (UVJ_B)
+LOOP_G      LOAD  R0, (UVJ2_B)
             ADD   R0, 0, R0
             JP_Z  LOOP_G
 
             LOAD  R0, (BROJ)
-            STORE R0, (UVJ_D)
-            STORE R0, (UVJ_B)
+            STORE R0, (UVJ2_D)
 
             LOAD  R0, (PODATCI)
             ADD   R0, 1, R0
             STORE R0, (PODATCI)
 
+				STORE R0, (UVJ2_B)
+
             JP    LOOP_G
 
-			;TODO: pretvoriti broj iz 2'k
+
             ORG 500
 PREKIDNI
-			PUSH  R0			 ;spremanje konteksta
-			MOVE  SR, R0
-			PUSH  R0
-
-			STORE R0, (PVJ_B)	 ;dojava prihvata prekida
+			;spremanje konteksta
+			STORE R0, (UVJ3_B)	 ;dojava prihvata prekida
 			LOAD  R0, (PODATCI)
-			STORE R0, (PVJ_D)	 ;spremanje dosad poslanih podataka na vj2 
+			STORE R0, (UVJ3_D)	 ;spremanje dosad poslanih podataka na vj2 
 
-            LOAD  R0, (BVJ)      ;ucitavanje parametra za potprogram
+         LOAD  R0, (UVJ1)      ;ucitavanje parametra za potprogram
 
-            CALL  OBRADI
-							
-			STORE R0, (PVJ_K)	;dojaviti kraj obrade prekida		
-			STORE R0, (BROJ)	;spremanje podatka tamo gdje treba
+         CALL  OBRADI
 
-			POP R0				;obnavljanje konteksta
-			MOVE R0, SR
-			POP R0
+			STORE R0, (BROJ)	;spremanje podatka tamo gdje treba					
+			STORE R0, (UVJ3_K)	;dojaviti kraj obrade prekida		
+			
 			RETI				;vracanje iz maskirajuceg prekida
 
 
 
-OBRADI      PUSH  R1             ;sluzi kao brojac koji cemo ispotencirati
+OBRADI   PUSH  R1             ;sluzi kao brojac koji cemo ispotencirati
 			MOVE  1, R1
 
 			ROTL  R0, 1, R0		 ;provjera jel broj neg
 			JP_M  NEGAT
 			ROTR  R0, 1, R0		 ;vracanje broja kao sto je i prije bio
 
-            SHL   R1, R0, R0
-            POP   R1
+         SHL   R1, R0, R0
+         POP   R1
 			RET
 
 NEGAT		POP R1				;obnavljanje konteksta
 			MOVE 0, R0
-			STORE R0, (PVJ_K)
-			STORE R0, (PVJ_S)	;zaustaviti danji prihvat sa vanjske jedinice
+			STORE R0, (UVJ3_K)
+			STORE R0, (UVJ3_S)	;zaustaviti danji prihvat sa vanjske jedinice
 			HALT				;stopati procesor
 
 BROJ        DW    0
